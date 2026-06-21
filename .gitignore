@@ -1,0 +1,11 @@
+bin/
+obj/
+*.user
+.vs/
+appsettings.Development.json
+appsettings.Local.json
+*.pfx
+logs/
+*.log
+.DS_Store
+Thumbs.db
