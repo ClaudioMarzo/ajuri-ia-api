@@ -1,11 +1,31 @@
+## .NET
 bin/
 obj/
 *.user
+*.suo
 .vs/
 appsettings.Development.json
 appsettings.Local.json
 *.pfx
+
+## Logs
 logs/
 *.log
+
+## IDE — VS Code
+.vscode/
+*.code-workspace
+
+## IDE — JetBrains / Rider
+.idea/
+*.sln.iml
+
+## OS
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+## NuGet
+*.nupkg
+.nuget/
