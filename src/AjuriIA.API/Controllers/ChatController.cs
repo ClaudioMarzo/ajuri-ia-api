@@ -30,7 +30,18 @@ public class ChatController(
             return;
         }
 
-        var profile = profileService.GetById(request.ProfileId)!;
+        var profile = profileService.GetById(request.ProfileId);
+        if (profile is null)
+        {
+            Response.StatusCode = 404;
+            await Response.WriteAsJsonAsync(new ApiResponse<object>
+            {
+                Success = false,
+                TraceId = Activity.Current?.Id ?? HttpContext.TraceIdentifier,
+                MessageError = $"Perfil '{request.ProfileId}' não encontrado."
+            }, ct);
+            return;
+        }
 
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
@@ -40,7 +51,7 @@ public class ChatController(
 
         await foreach (var chunk in orchestrator.StreamAsync(profile, request.Message, ct))
         {
-            await Response.WriteAsync($"data: {chunk}\n\n", ct);
+            await Response.WriteAsync($"data: {chunk.Replace("\n", "\\n")}\n\n", ct);
             await Response.Body.FlushAsync(ct);
         }
 

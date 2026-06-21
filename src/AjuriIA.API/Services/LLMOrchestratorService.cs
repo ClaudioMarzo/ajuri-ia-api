@@ -31,7 +31,7 @@ public class LLMOrchestratorService(IEnumerable<ILLMService> services)
                 }
                 LastUsedLlm = service.Name;
             }
-            catch
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 failedOnFirst = true;
                 if (enumerator is not null)
@@ -42,15 +42,32 @@ public class LLMOrchestratorService(IEnumerable<ILLMService> services)
 
             yield return enumerator!.Current;
 
+            Exception? continuationException = null;
             try
             {
-                while (await enumerator!.MoveNextAsync())
-                    yield return enumerator.Current;
+                bool hasNext;
+                while (true)
+                {
+                    try
+                    {
+                        hasNext = await enumerator!.MoveNextAsync();
+                    }
+                    catch (OperationCanceledException ex)
+                    {
+                        continuationException = ex;
+                        break;
+                    }
+                    if (!hasNext) break;
+                    yield return enumerator!.Current;
+                }
             }
             finally
             {
                 await enumerator!.DisposeAsync();
             }
+
+            if (continuationException is not null)
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(continuationException).Throw();
 
             yield break;
         }

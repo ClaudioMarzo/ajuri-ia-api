@@ -17,10 +17,11 @@ public class GeminiService(IHttpClientFactory httpClientFactory, IConfiguration 
         var apiKey = configuration["GEMINI_API_KEY"]
             ?? throw new InvalidOperationException("GEMINI_API_KEY not configured");
 
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Model}:streamGenerateContent?alt=sse&key={apiKey}";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Model}:streamGenerateContent?alt=sse";
 
         var client = httpClientFactory.CreateClient();
         var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("x-goog-api-key", apiKey);
 
         var body = new
         {

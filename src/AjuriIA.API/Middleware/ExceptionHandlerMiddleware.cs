@@ -14,6 +14,13 @@ public class ExceptionHandlerMiddleware(RequestDelegate next, ILogger<ExceptionH
         catch (Exception ex)
         {
             var traceId = Activity.Current?.Id ?? context.TraceIdentifier;
+
+            if (context.Response.HasStarted)
+            {
+                logger.LogError(ex, "Exception after response started — cannot send error envelope. TraceId: {TraceId}", traceId);
+                return;
+            }
+
             logger.LogError(ex, "Unhandled exception. TraceId: {TraceId}", traceId);
 
             context.Response.StatusCode = ex is AllLLMsUnavailableException ? 503 : 500;
