@@ -54,15 +54,15 @@ public class LLMOrchestratorService(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 var httpStatus = ex is HttpRequestException httpEx
-                    ? httpEx.StatusCode?.ToString() ?? "unknown HTTP status"
+                    ? (int?)httpEx.StatusCode
                     : null;
 
                 logger.LogWarning(
-                    "[LLM] {LlmName} falhou — {ExceptionType}: {Message}{HttpStatus}",
+                    "[LLM] {LlmName} falhou — {ExceptionType}: {Message} HttpStatus={HttpStatus}",
                     service.Name,
                     ex.GetType().Name,
                     ex.Message,
-                    httpStatus != null ? $" (HTTP {httpStatus})" : "");
+                    httpStatus.HasValue ? httpStatus.Value.ToString() : "n/a");
 
                 failedOnFirst = true;
                 hadFailure = true;

@@ -57,20 +57,25 @@ public class ChatController(
         var sw = Stopwatch.StartNew();
         var chunkCount = 0;
 
-        await foreach (var chunk in orchestrator.StreamAsync(profile, request.Message, ct))
+        try
         {
-            await Response.WriteAsync($"data: {chunk.Replace("\n", "\\n")}\n\n", ct);
-            await Response.Body.FlushAsync(ct);
-            chunkCount++;
+            await foreach (var chunk in orchestrator.StreamAsync(profile, request.Message, ct))
+            {
+                await Response.WriteAsync($"data: {chunk.Replace("\n", "\\n")}\n\n", ct);
+                await Response.Body.FlushAsync(ct);
+                chunkCount++;
+            }
         }
-
-        sw.Stop();
-        logger.LogInformation(
-            "[CHAT] profile={ProfileId} llm={LlmUsed} chunks={ChunkCount} duration={ElapsedMs}ms",
-            request.ProfileId,
-            orchestrator.LastUsedLlm ?? "unknown",
-            chunkCount,
-            sw.ElapsedMilliseconds);
+        finally
+        {
+            sw.Stop();
+            logger.LogInformation(
+                "[CHAT] profile={ProfileId} llm={LlmUsed} chunks={ChunkCount} duration={ElapsedMs}ms",
+                request.ProfileId,
+                orchestrator.LastUsedLlm ?? "unknown",
+                chunkCount,
+                sw.ElapsedMilliseconds);
+        }
 
         var donePayload = JsonSerializer.Serialize(
             new ApiResponse<ChatResponse>
