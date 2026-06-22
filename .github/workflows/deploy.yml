@@ -1,4 +1,4 @@
-name: Test and Deploy
+name: Tests
 
 on:
   push:
@@ -24,18 +24,3 @@ jobs:
 
       - name: Run all tests
         run: dotnet test tests/AjuriIA.Tests --no-build --configuration Release --verbosity normal
-
-  deploy:
-    name: Deploy to Fly.io
-    needs: test
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Deploy
-        uses: superfly/flyctl-actions/setup-flyctl@master
-
-      - run: flyctl deploy --remote-only
-        env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

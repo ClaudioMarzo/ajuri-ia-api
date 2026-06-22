@@ -1,7 +1,7 @@
 # AjuriIA API — Referência de Endpoints
 
 Base URL local: `http://localhost:5000`
-Base URL produção: `https://ajuri-ia-api.up.railway.app`
+Base URL produção: `https://ajuri-ia.onrender.com`
 Documentação interativa: `/scalar/v1`
 
 ---
