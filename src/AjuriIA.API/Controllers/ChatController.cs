@@ -55,16 +55,21 @@ public class ChatController(
             await Response.Body.FlushAsync(ct);
         }
 
-        var donePayload = JsonSerializer.Serialize(new ApiResponse<ChatResponse>
-        {
-            Success = true,
-            Data = new ChatResponse
+        var donePayload = JsonSerializer.Serialize(
+            new ApiResponse<ChatResponse>
             {
-                LlmUsed = orchestrator.LastUsedLlm ?? "unknown",
-                ProfileId = request.ProfileId
+                Success = true,
+                Data = new ChatResponse
+                {
+                    LlmUsed = orchestrator.LastUsedLlm ?? "unknown",
+                    ProfileId = request.ProfileId
+                },
+                TraceId = traceId
             },
-            TraceId = traceId
-        });
+            new System.Text.Json.JsonSerializerOptions
+            {
+                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+            });
 
         await Response.WriteAsync($"data: [DONE] {donePayload}\n\n", ct);
         await Response.Body.FlushAsync(ct);
