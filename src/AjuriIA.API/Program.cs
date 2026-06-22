@@ -6,8 +6,12 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+const string LogTemplate =
+    "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj}{NewLine}{Exception}";
+
 builder.Host.UseSerilog((ctx, lc) =>
-    lc.ReadFrom.Configuration(ctx.Configuration).WriteTo.Console());
+    lc.ReadFrom.Configuration(ctx.Configuration)
+      .WriteTo.Console(outputTemplate: LogTemplate));
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
@@ -36,6 +40,11 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 app.UseMiddleware<ExceptionHandlerMiddleware>();
+app.UseSerilogRequestLogging(opts =>
+{
+    opts.MessageTemplate =
+        "HTTP {RequestMethod} {RequestPath} → {StatusCode} ({Elapsed:0}ms)";
+});
 app.UseCors();
 app.MapControllers();
 app.MapOpenApi();
