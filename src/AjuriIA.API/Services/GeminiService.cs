@@ -9,7 +9,7 @@ public class GeminiService(
     IConfiguration configuration,
     ILogger<GeminiService> logger) : ILLMService
 {
-    private const string Model = "gemini-2.0-flash";
+    private const string Model = "gemini-3.5-flash";
     private const int MaxAttempts = 2;
 
     public string Name => "gemini-flash";
