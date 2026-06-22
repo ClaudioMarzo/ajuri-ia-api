@@ -68,8 +68,23 @@ public class RequestEnrichmentMiddlewareTests
         nextCalled.Should().BeTrue();
     }
 
-    [Fact(DisplayName = "Given non-JSON body, When InvokeAsync, Then next is still called without throwing")]
-    public async Task Given_NonJsonBody_When_InvokeAsync_Then_NextIsCalledWithoutThrowing()
+    [Fact(DisplayName = "Given non-JSON body, When InvokeAsync, Then does not throw")]
+    public async Task Given_NonJsonBody_When_InvokeAsync_Then_DoesNotThrow()
+    {
+        // Given
+        var context = CreateContext("not json at all");
+        RequestDelegate next = _ => Task.CompletedTask;
+        var middleware = new RequestEnrichmentMiddleware(next);
+
+        // When
+        var act = async () => await middleware.InvokeAsync(context);
+
+        // Then
+        await act.Should().NotThrowAsync();
+    }
+
+    [Fact(DisplayName = "Given non-JSON body, When InvokeAsync, Then next is called")]
+    public async Task Given_NonJsonBody_When_InvokeAsync_Then_NextIsCalled()
     {
         // Given
         var context = CreateContext("not json at all");
@@ -78,10 +93,9 @@ public class RequestEnrichmentMiddlewareTests
         var middleware = new RequestEnrichmentMiddleware(next);
 
         // When
-        var act = async () => await middleware.InvokeAsync(context);
+        await middleware.InvokeAsync(context);
 
         // Then
-        await act.Should().NotThrowAsync();
         nextCalled.Should().BeTrue();
     }
 }
