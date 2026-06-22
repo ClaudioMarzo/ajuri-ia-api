@@ -15,17 +15,18 @@ primary_region = 'gru'
     hard_limit = 250
     soft_limit = 200
 
+[checks]
+  [checks.health]
+    port = 8080
+    type = 'http'
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/api/health'
+
 [[vm]]
   memory = '256mb'
   cpu_kind = 'shared'
   cpus = 1
-
-[checks]
-  [checks.health]
-    grace_period = '10s'
-    interval = '30s'
-    method = 'GET'
-    path = '/api/health'
-    port = 8080
-    timeout = '5s'
-    type = 'http'
+  memory_mb = 256
