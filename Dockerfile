@@ -2,7 +2,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-COPY AjuriIA.sln .
+COPY AjuriIA.slnx .
 COPY src/AjuriIA.API/AjuriIA.API.csproj src/AjuriIA.API/
 RUN dotnet restore src/AjuriIA.API/AjuriIA.API.csproj
 
