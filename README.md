@@ -131,4 +131,45 @@ make test-functional     # Só testes funcionais
 make deploy              # Testa e faz deploy no Fly.io
 make logs                # Logs da app em produção
 make clean               # Limpa bin/ e obj/
+
+---
+
+## Endpoints
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/api/health` | Status da API |
+| `GET` | `/api/profiles` | Lista os 6 perfis com system prompts |
+| `POST` | `/api/chat` | Chat com streaming SSE |
+| `GET` | `/scalar/v1` | Documentação interativa |
+
+Referência completa de request/response: [doc/api.md](doc/api.md)
+
+---
+
+## Testes
+
+41 testes cobrindo três camadas:
+
+| Camada | O que cobre |
+|--------|-------------|
+| **Unitários** | Cada service isolado (Claude, OpenAI, Gemini, Orchestrator, ProfileService, Validator, Middleware) |
+| **Integração** | Endpoints via `WebApplicationFactory` com mocks de HTTP |
+| **Funcionais** | Fluxo SSE completo end-to-end |
+
+```bash
+make test                # Todos os 41
+make test-unit           # Rápido — sem HTTP
+make test-integration    # Endpoints com mocks
+make test-functional     # SSE streaming completo
 ```
+
+---
+
+## Contexto do Projeto
+
+**Ajuri** vem do Nheengatu e significa *mutirão* — trabalhar junto. O nome reflete a proposta: tecnologia de IA colaborando com quem mais precisa de acesso a ela.
+
+Maués (AM) é a capital mundial do guaraná. Produtores rurais, professores de escolas ribeirinhas, pescadores, agentes de saúde comunitária e servidores públicos municipais têm pouco ou nenhum acesso a ferramentas de IA calibradas para sua realidade.
+
+Esta POC foi desenvolvida para uma **feira de IA** como demonstração de que é possível construir assistentes contextualizados — não IA genérica, mas IA que conhece o calendário de pesca do Amazonas, as normas do IBAMA, o cotidiano de uma escola ribeirinha e a realidade do produtor de guaraná de Maués.
