@@ -1,9 +1,12 @@
 using System.Runtime.CompilerServices;
 using AjuriIA.API.Models;
+using Microsoft.Extensions.Logging;
 
 namespace AjuriIA.API.Services;
 
-public class LLMOrchestratorService(IEnumerable<ILLMService> services)
+public class LLMOrchestratorService(
+    IEnumerable<ILLMService> services,
+    ILogger<LLMOrchestratorService> logger)
 {
     public string? LastUsedLlm { get; private set; }
 
@@ -33,6 +36,9 @@ public class LLMOrchestratorService(IEnumerable<ILLMService> services)
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                logger.LogWarning(
+                    "[LLM:{LlmName}] Falhou no primeiro chunk — {ExceptionType}: {Message}",
+                    service.Name, ex.GetType().Name, ex.Message);
                 failedOnFirst = true;
                 if (enumerator is not null)
                     await enumerator.DisposeAsync();
@@ -71,6 +77,11 @@ public class LLMOrchestratorService(IEnumerable<ILLMService> services)
 
             yield break;
         }
+
+        logger.LogError(
+            "Todos os LLMs falharam para o perfil {ProfileId}. Serviços tentados: {Services}",
+            profile.Id,
+            string.Join(", ", GetServicesInOrder(profile.Llm).Select(s => s.Name)));
 
         throw new AllLLMsUnavailableException(
             "Serviço de IA temporariamente indisponível. Tente novamente em instantes.");

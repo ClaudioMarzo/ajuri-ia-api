@@ -1,6 +1,7 @@
 using AjuriIA.API.Models;
 using AjuriIA.API.Services;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 
@@ -29,7 +30,7 @@ public class LLMOrchestratorServiceTests
         claude.Name.Returns("claude-haiku");
         claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
               .Returns(YieldChunks("Olá"));
-        var sut = new LLMOrchestratorService([claude]);
+        var sut = new LLMOrchestratorService([claude], NullLogger<LLMOrchestratorService>.Instance);
 
         // When
         await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
@@ -52,7 +53,7 @@ public class LLMOrchestratorServiceTests
         openai.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
               .Returns(YieldChunks("Resposta do OpenAI"));
 
-        var sut = new LLMOrchestratorService([claude, openai]);
+        var sut = new LLMOrchestratorService([claude, openai], NullLogger<LLMOrchestratorService>.Instance);
 
         // When
         await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
@@ -80,7 +81,7 @@ public class LLMOrchestratorServiceTests
         gemini.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
               .Returns(YieldChunks("Resposta do Gemini"));
 
-        var sut = new LLMOrchestratorService([claude, openai, gemini]);
+        var sut = new LLMOrchestratorService([claude, openai, gemini], NullLogger<LLMOrchestratorService>.Instance);
 
         // When
         await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
@@ -98,7 +99,7 @@ public class LLMOrchestratorServiceTests
         claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
               .Throws<HttpRequestException>();
 
-        var sut = new LLMOrchestratorService([claude]);
+        var sut = new LLMOrchestratorService([claude], NullLogger<LLMOrchestratorService>.Instance);
 
         // When
         var act = async () =>
@@ -119,7 +120,7 @@ public class LLMOrchestratorServiceTests
         claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
               .Returns(YieldChunks("Olá", " mundo", "!"));
 
-        var sut = new LLMOrchestratorService([claude]);
+        var sut = new LLMOrchestratorService([claude], NullLogger<LLMOrchestratorService>.Instance);
         var chunks = new List<string>();
 
         // When
