@@ -73,3 +73,62 @@ POST /api/chat  { profileId, message }
 - **SSE em vez de WebSocket** — resposta unidirecional; SSE é mais simples, funciona sem estado e é nativo no browser
 - **Fallback entre LLMs** — o `LLMOrchestratorService` detecta falha no primeiro chunk e troca de provider transparentemente
 - **Perfis em JSON externo** — novos perfis e system prompts sem recompilar
+
+---
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Runtime | .NET 10 |
+| Framework | ASP.NET Core Web API |
+| LLMs | Claude Haiku · GPT-4o Mini · Gemini Flash |
+| Logging | Serilog |
+| Validação | FluentValidation |
+| Documentação | Scalar (`/scalar/v1`) |
+| Testes | xUnit · FluentAssertions · NSubstitute · Bogus |
+| Deploy | Fly.io (região São Paulo — `gru`) |
+| CI/CD | GitHub Actions |
+
+---
+
+## Rodando Localmente
+
+**Pré-requisitos:** [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) e `make`
+
+```bash
+# 1. Clonar
+git clone https://github.com/ClaudioMarzo/ajuri-ia-api
+cd ajuri-ia-api
+
+# 2. Criar arquivo de configuração local
+make setup
+
+# 3. Preencher as chaves no arquivo criado
+# Edite: src/AjuriIA.API/appsettings.Development.json
+# {
+#   "CLAUDE_API_KEY": "sk-ant-...",   → console.anthropic.com
+#   "OPENAI_API_KEY": "sk-...",       → platform.openai.com/api-keys
+#   "GEMINI_API_KEY": "AIza..."       → aistudio.google.com
+# }
+
+# 4. Subir
+make run    # API em http://localhost:5000
+make watch  # Com hot reload
+```
+
+> Para usar **apenas Gemini** (plano gratuito, sem cartão), preencha só `GEMINI_API_KEY` e ignore as demais — todos os perfis roteiam para Gemini nesta POC.
+
+**Comandos disponíveis:**
+
+```bash
+make run                 # Sobe a API localmente
+make watch               # Hot reload
+make test                # Roda os 41 testes
+make test-unit           # Só testes unitários
+make test-integration    # Só testes de integração
+make test-functional     # Só testes funcionais
+make deploy              # Testa e faz deploy no Fly.io
+make logs                # Logs da app em produção
+make clean               # Limpa bin/ e obj/
+```
