@@ -190,11 +190,8 @@ public class LLMOrchestratorServiceTests
         var sut = new LLMOrchestratorService([claude], logger);
 
         // When
-        var act = async () =>
-        {
-            await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
-        };
-        await act.Should().ThrowAsync<AllLLMsUnavailableException>();
+        try { await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { } }
+        catch (AllLLMsUnavailableException) { /* esperado — coberto por outro teste */ }
 
         // Then
         logger.Entries.Should().Contain(e =>
