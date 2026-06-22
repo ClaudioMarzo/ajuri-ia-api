@@ -39,6 +39,7 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+app.UseMiddleware<RequestEnrichmentMiddleware>();
 app.UseMiddleware<ExceptionHandlerMiddleware>();
 app.UseSerilogRequestLogging(opts =>
 {
