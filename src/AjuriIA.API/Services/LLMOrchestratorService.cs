@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using AjuriIA.API.Models;
 using Microsoft.Extensions.Logging;
@@ -16,9 +17,17 @@ public class LLMOrchestratorService(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var ordered = GetServicesInOrder(profile.Llm);
+        bool hadFailure = false;
 
         foreach (var service in ordered)
         {
+            if (hadFailure)
+                logger.LogInformation("[LLM] Fallback para {LlmName}", service.Name);
+
+            logger.LogInformation(
+                "[LLM] Tentando {LlmName} para perfil {ProfileId}",
+                service.Name, profile.Id);
+
             IAsyncEnumerator<string>? enumerator = null;
             bool failedOnFirst = false;
 
@@ -26,20 +35,38 @@ public class LLMOrchestratorService(
             {
                 enumerator = service.StreamAsync(profile.SystemPrompt, userMessage, ct)
                                     .GetAsyncEnumerator(ct);
+
+                var sw = Stopwatch.StartNew();
                 var hasFirst = await enumerator.MoveNextAsync();
+                sw.Stop();
+
                 if (!hasFirst)
                 {
                     await enumerator.DisposeAsync();
                     continue;
                 }
+
                 LastUsedLlm = service.Name;
+                logger.LogInformation(
+                    "[LLM] Primeiro chunk em {ElapsedMs}ms — {LlmName} respondeu",
+                    sw.ElapsedMilliseconds, service.Name);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
+                var httpStatus = ex is HttpRequestException httpEx
+                    ? httpEx.StatusCode?.ToString() ?? "unknown HTTP status"
+                    : null;
+
                 logger.LogWarning(
-                    "[LLM:{LlmName}] Falhou no primeiro chunk — {ExceptionType}: {Message}",
-                    service.Name, ex.GetType().Name, ex.Message);
+                    "[LLM] {LlmName} falhou — {ExceptionType}: {Message}{HttpStatus}",
+                    service.Name,
+                    ex.GetType().Name,
+                    ex.Message,
+                    httpStatus != null ? $" (HTTP {httpStatus})" : "");
+
                 failedOnFirst = true;
+                hadFailure = true;
+
                 if (enumerator is not null)
                     await enumerator.DisposeAsync();
             }
@@ -73,13 +100,14 @@ public class LLMOrchestratorService(
             }
 
             if (continuationException is not null)
-                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(continuationException).Throw();
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo
+                    .Capture(continuationException).Throw();
 
             yield break;
         }
 
         logger.LogError(
-            "Todos os LLMs falharam para o perfil {ProfileId}. Serviços tentados: {Services}",
+            "[LLM] Todos os LLMs falharam para {ProfileId} — tentados: {LlmNames}",
             profile.Id,
             string.Join(", ", GetServicesInOrder(profile.Llm).Select(s => s.Name)));
 

@@ -1,6 +1,8 @@
 using AjuriIA.API.Models;
 using AjuriIA.API.Services;
+using AjuriIA.Tests.Helpers;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -129,5 +131,99 @@ public class LLMOrchestratorServiceTests
 
         // Then
         chunks.Should().HaveCount(3);
+    }
+
+    [Fact(DisplayName = "Given LLM responds, When StreamAsync, Then logs first chunk timing at Information")]
+    public async Task Given_LLMResponds_When_StreamAsync_Then_LogsFirstChunkInfo()
+    {
+        // Given
+        var logger = new CaptureLogger<LLMOrchestratorService>();
+        var claude = Substitute.For<ILLMService>();
+        claude.Name.Returns("claude-haiku");
+        claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Returns(YieldChunks("Olá"));
+        var sut = new LLMOrchestratorService([claude], logger);
+
+        // When
+        await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
+
+        // Then
+        logger.Entries.Should().Contain(e =>
+            e.Level == LogLevel.Information &&
+            e.Message.Contains("claude-haiku") &&
+            e.Message.Contains("respondeu"));
+    }
+
+    [Fact(DisplayName = "Given LLM fails, When StreamAsync, Then logs warning with LLM name")]
+    public async Task Given_LLMFails_When_StreamAsync_Then_LogsWarning()
+    {
+        // Given
+        var logger = new CaptureLogger<LLMOrchestratorService>();
+        var claude = Substitute.For<ILLMService>();
+        claude.Name.Returns("claude-haiku");
+        claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Throws<HttpRequestException>();
+        var gemini = Substitute.For<ILLMService>();
+        gemini.Name.Returns("gemini-flash");
+        gemini.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Returns(YieldChunks("ok"));
+        var sut = new LLMOrchestratorService([claude, gemini], logger);
+
+        // When
+        await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
+
+        // Then
+        logger.Entries.Should().Contain(e =>
+            e.Level == LogLevel.Warning &&
+            e.Message.Contains("claude-haiku"));
+    }
+
+    [Fact(DisplayName = "Given all LLMs fail, When StreamAsync, Then logs error with all LLM names")]
+    public async Task Given_AllLLMsFail_When_StreamAsync_Then_LogsError()
+    {
+        // Given
+        var logger = new CaptureLogger<LLMOrchestratorService>();
+        var claude = Substitute.For<ILLMService>();
+        claude.Name.Returns("claude-haiku");
+        claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Throws<HttpRequestException>();
+        var sut = new LLMOrchestratorService([claude], logger);
+
+        // When
+        var act = async () =>
+        {
+            await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
+        };
+        await act.Should().ThrowAsync<AllLLMsUnavailableException>();
+
+        // Then
+        logger.Entries.Should().Contain(e =>
+            e.Level == LogLevel.Error &&
+            e.Message.Contains("claude-haiku"));
+    }
+
+    [Fact(DisplayName = "Given primary fails and fallback used, When StreamAsync, Then logs fallback attempt")]
+    public async Task Given_PrimaryFails_When_StreamAsync_Then_LogsFallbackAttempt()
+    {
+        // Given
+        var logger = new CaptureLogger<LLMOrchestratorService>();
+        var claude = Substitute.For<ILLMService>();
+        claude.Name.Returns("claude-haiku");
+        claude.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Throws<HttpRequestException>();
+        var gemini = Substitute.For<ILLMService>();
+        gemini.Name.Returns("gemini-flash");
+        gemini.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+              .Returns(YieldChunks("ok"));
+        var sut = new LLMOrchestratorService([claude, gemini], logger);
+
+        // When
+        await foreach (var _ in sut.StreamAsync(_profile, "mensagem", default)) { }
+
+        // Then
+        logger.Entries.Should().Contain(e =>
+            e.Level == LogLevel.Information &&
+            e.Message.Contains("Fallback") &&
+            e.Message.Contains("gemini-flash"));
     }
 }
