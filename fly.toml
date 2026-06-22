@@ -1,3 +1,8 @@
+# fly.toml app configuration file generated for ajuri-ia-api on 2026-06-22T02:05:06Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
 app = 'ajuri-ia-api'
 primary_region = 'gru'
 
