@@ -1,0 +1,12 @@
+**/.git
+**/bin
+**/obj
+**/.vs
+tests/
+doc/
+docs/
+*.md
+Makefile
+fly.toml
+appsettings.Development.json
+appsettings.Local.json

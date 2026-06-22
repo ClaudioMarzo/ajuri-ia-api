@@ -2,10 +2,11 @@ API     := src/AjuriIA.API
 TESTS   := tests/AjuriIA.Tests
 PORT    := 5000
 
-.PHONY: run watch build test test-unit test-integration test-functional clean setup help
+.PHONY: run watch build test test-unit test-integration test-functional clean setup deploy deploy-secrets logs help
 
 help:
 	@echo ""
+	@echo "  Desenvolvimento:"
 	@echo "  make run                 Sobe a API em http://localhost:$(PORT)"
 	@echo "  make watch               Sobe com hot reload (reinicia ao salvar)"
 	@echo "  make build               Compila o projeto"
@@ -15,6 +16,11 @@ help:
 	@echo "  make test-functional     Roda apenas testes funcionais"
 	@echo "  make setup               Cria appsettings.Development.json com as chaves"
 	@echo "  make clean               Remove bin/ e obj/"
+	@echo ""
+	@echo "  Deploy (Fly.io):"
+	@echo "  make deploy              Build e deploy para produção"
+	@echo "  make deploy-secrets      Configura as chaves de API no Fly.io"
+	@echo "  make logs                Mostra os logs da app em produção"
 	@echo ""
 
 run: build
@@ -50,3 +56,21 @@ setup:
 		echo '{\n  "CLAUDE_API_KEY": "sk-ant-COLOQUE-AQUI",\n  "OPENAI_API_KEY": "sk-COLOQUE-AQUI",\n  "GEMINI_API_KEY": "AIza-COLOQUE-AQUI",\n  "AllowedOrigin": "http://localhost:5173"\n}' > $(API)/appsettings.Development.json; \
 		echo "Criado $(API)/appsettings.Development.json — preencha as chaves antes de rodar."; \
 	fi
+
+deploy:
+	@echo "Rodando testes antes do deploy..."
+	@dotnet test $(TESTS) --verbosity quiet || (echo "Testes falharam — deploy cancelado." && exit 1)
+	flyctl deploy
+
+deploy-secrets:
+	@echo "Configure as 3 chaves abaixo:"
+	@read -p "CLAUDE_API_KEY: " CLAUDE; \
+	 read -p "OPENAI_API_KEY: " OPENAI; \
+	 read -p "GEMINI_API_KEY: " GEMINI; \
+	 flyctl secrets set \
+	   CLAUDE_API_KEY="$$CLAUDE" \
+	   OPENAI_API_KEY="$$OPENAI" \
+	   GEMINI_API_KEY="$$GEMINI"
+
+logs:
+	flyctl logs
