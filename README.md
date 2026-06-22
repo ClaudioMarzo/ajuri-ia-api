@@ -131,6 +131,7 @@ make test-functional     # Só testes funcionais
 make deploy              # Testa e faz deploy no Fly.io
 make logs                # Logs da app em produção
 make clean               # Limpa bin/ e obj/
+```
 
 ---
 
