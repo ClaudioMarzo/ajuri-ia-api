@@ -12,8 +12,14 @@ namespace AjuriIA.API.Controllers;
 public class ChatController(
     ProfileService profileService,
     LLMOrchestratorService orchestrator,
-    ChatRequestValidator validator) : ControllerBase
+    ChatRequestValidator validator,
+    ILogger<ChatController> logger) : ControllerBase
 {
+    private static readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     [HttpPost("chat")]
     public async Task StreamChat([FromBody] ChatRequest request, CancellationToken ct)
     {
@@ -48,12 +54,23 @@ public class ChatController(
         Response.Headers.Connection = "keep-alive";
 
         var traceId = Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        var sw = Stopwatch.StartNew();
+        var chunkCount = 0;
 
         await foreach (var chunk in orchestrator.StreamAsync(profile, request.Message, ct))
         {
             await Response.WriteAsync($"data: {chunk.Replace("\n", "\\n")}\n\n", ct);
             await Response.Body.FlushAsync(ct);
+            chunkCount++;
         }
+
+        sw.Stop();
+        logger.LogInformation(
+            "[CHAT] profile={ProfileId} llm={LlmUsed} chunks={ChunkCount} duration={ElapsedMs}ms",
+            request.ProfileId,
+            orchestrator.LastUsedLlm ?? "unknown",
+            chunkCount,
+            sw.ElapsedMilliseconds);
 
         var donePayload = JsonSerializer.Serialize(
             new ApiResponse<ChatResponse>
@@ -66,10 +83,7 @@ public class ChatController(
                 },
                 TraceId = traceId
             },
-            new System.Text.Json.JsonSerializerOptions
-            {
-                PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
-            });
+            _jsonOptions);
 
         await Response.WriteAsync($"data: [DONE] {donePayload}\n\n", ct);
         await Response.Body.FlushAsync(ct);
