@@ -4,6 +4,7 @@ using AjuriIA.API.Services;
 using AjuriIA.Tests.Helpers;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace AjuriIA.Tests.Unit.Services;
@@ -17,7 +18,7 @@ public class GeminiServiceTests
         var httpClient = new HttpClient(handler);
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(Arg.Any<string>()).Returns(httpClient);
-        return new GeminiService(factory, config);
+        return new GeminiService(factory, config, NullLogger<GeminiService>.Instance);
     }
 
     private static HttpMessageHandler CreateSseHandler(IEnumerable<string> textChunks)
