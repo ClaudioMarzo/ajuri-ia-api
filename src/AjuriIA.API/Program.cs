@@ -1,4 +1,5 @@
 using AjuriIA.API.Middleware;
+using AjuriIA.API.Models;
 using AjuriIA.API.Services;
 using AjuriIA.API.Validators;
 using Scalar.AspNetCore;
@@ -30,10 +31,28 @@ builder.Services.AddSingleton<ProfileService>();
 builder.Services.AddScoped<ChatRequestValidator>();
 
 // LLM Services
-builder.Services.AddHttpClient();
-builder.Services.AddSingleton<ILLMService, ClaudeService>();
-builder.Services.AddSingleton<ILLMService, OpenAIService>();
-builder.Services.AddSingleton<ILLMService, GeminiService>();
+var geminiOptions = builder.Configuration.GetSection("Gemini").Get<GeminiOptions>()
+    ?? new GeminiOptions();
+builder.Services.AddSingleton(geminiOptions);
+
+// Retry curto: o fallback entre modelos (orquestrador) é quem resolve 503/sobrecarga.
+builder.Services.AddHttpClient("gemini").AddStandardResilienceHandler(o =>
+{
+    o.Retry.MaxRetryAttempts = 1;
+    o.Retry.Delay = TimeSpan.FromMilliseconds(500);
+});
+
+// Um ILLMService por modelo permitido; o orquestrador tenta o modelo pedido
+// primeiro e cai para os demais (na ordem da lista) em caso de falha.
+foreach (var m in geminiOptions.Models)
+{
+    var modelId = m.Id;
+    builder.Services.AddSingleton<ILLMService>(sp => new GeminiService(
+        sp.GetRequiredService<IHttpClientFactory>(),
+        sp.GetRequiredService<IConfiguration>(),
+        sp.GetRequiredService<ILogger<GeminiService>>(),
+        modelId));
+}
 builder.Services.AddScoped<LLMOrchestratorService>();
 
 // CORS
@@ -60,17 +79,15 @@ void LogApiKey(string key)
         startupLogger.LogInformation("{Key}: ✓", key);
 }
 
-LogApiKey("CLAUDE_API_KEY");
-LogApiKey("OPENAI_API_KEY");
 LogApiKey("GEMINI_API_KEY");
 
 app.UseMiddleware<RequestEnrichmentMiddleware>();
-app.UseMiddleware<ExceptionHandlerMiddleware>();
 app.UseSerilogRequestLogging(opts =>
 {
     opts.MessageTemplate =
         "HTTP {RequestMethod} {RequestPath} → {StatusCode} ({Elapsed:0}ms)";
 });
+app.UseMiddleware<ExceptionHandlerMiddleware>();
 app.UseCors();
 app.MapControllers();
 app.MapOpenApi();

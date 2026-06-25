@@ -14,9 +14,11 @@ public class LLMOrchestratorService(
     public async IAsyncEnumerable<string> StreamAsync(
         Profile profile,
         string userMessage,
+        string? preferredLlm = null,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
-        var ordered = GetServicesInOrder(profile.Llm);
+        var primary = string.IsNullOrWhiteSpace(preferredLlm) ? profile.Llm : preferredLlm;
+        var ordered = GetServicesInOrder(primary);
         bool hadFailure = false;
 
         foreach (var service in ordered)
@@ -109,7 +111,7 @@ public class LLMOrchestratorService(
         logger.LogError(
             "[LLM] Todos os LLMs falharam para {ProfileId} — tentados: {LlmNames}",
             profile.Id,
-            string.Join(", ", GetServicesInOrder(profile.Llm).Select(s => s.Name)));
+            string.Join(", ", GetServicesInOrder(primary).Select(s => s.Name)));
 
         throw new AllLLMsUnavailableException(
             "Serviço de IA temporariamente indisponível. Tente novamente em instantes.");

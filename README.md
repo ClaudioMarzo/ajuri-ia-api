@@ -1,9 +1,9 @@
 # AjuriIA API
 
-> POC desenvolvida para feira de IA — assistente inteligente para comunidades amazônicas, com 6 perfis especializados, 3 LLMs com fallback automático e streaming em tempo real.
+> POC desenvolvida para feira de IA — assistente inteligente para comunidades amazônicas, com perfis especializados, Gemini Flash e streaming em tempo real.
 
 [![CI](https://github.com/ClaudioMarzo/ajuri-ia-api/actions/workflows/deploy.yml/badge.svg)](https://github.com/ClaudioMarzo/ajuri-ia-api/actions)
-[![Testes](https://img.shields.io/badge/testes-41%20passing-brightgreen)](#testes)
+[![Testes](https://img.shields.io/badge/testes-44%20passing-brightgreen)](#testes)
 [![.NET](https://img.shields.io/badge/.NET-10-512BD4)](https://dotnet.microsoft.com/download/dotnet/10.0)
 [![Deploy](https://img.shields.io/badge/deploy-Render-46E3B7)](https://render.com)
 
@@ -25,54 +25,49 @@ Documentação interativa: **https://ajuri-ia.onrender.com/scalar/v1**
 
 ---
 
-## Os 6 Perfis
+## Os Perfis
 
-Cada perfil tem um system prompt calibrado para sua realidade e um LLM ideal associado:
+Cada perfil tem um system prompt calibrado para sua realidade:
 
-| Perfil | Descrição | LLM Ideal |
-|--------|-----------|-----------|
-| 📚 Professor / Educador | Planos de aula em segundos | Claude Haiku |
-| 🌿 Produtor de Guaraná | Gestão e negócios para sua produção | GPT-4o Mini |
-| 🐟 Pescador / Agricultor | Calendário, normas e acesso à assistência | Gemini Flash |
-| 🏥 Agente de Saúde | Orientações e comunicados para a comunidade | Claude Haiku |
-| 🏛️ Servidor Público | Ofícios, atas e documentos oficiais | GPT-4o Mini |
-| 🚀 Empreendedor | Plano de negócio e pitch em minutos | Claude Haiku |
+| Perfil | Descrição |
+|--------|-----------|
+| 📚 Professor / Educador | Planos de aula em segundos |
+| 🏥 Agente de Saúde | Orientações e comunicados para a comunidade |
 
-> **Nota POC:** nesta versão todos os perfis roteiam para Gemini Flash (custo zero). O campo `idealLlm` no `profiles.json` registra o LLM pretendido por perfil para quando as chaves das outras APIs estiverem configuradas.
+> Novos perfis e system prompts podem ser adicionados em [`profiles.json`](src/AjuriIA.API/Config/profiles.json) sem recompilar.
 
 ---
 
 ## Como Funciona
 
 ```
-POST /api/chat  { profileId, message }
+POST /api/chat  { profileId, message, model? }
        │
        ▼
  ChatController
-       │  FluentValidation → profileId válido, message 3–2000 chars
+       │  FluentValidation → profileId válido, message 3–2000 chars, model na allowlist
        │  ProfileService   → carrega system prompt do profiles.json
+       │  model escolhido pelo cliente (ou default do servidor)
        ▼
  LLMOrchestratorService
-       │  tenta LLM primário do perfil
-       │  fallback automático para os demais se o primário falhar
+       │  tenta o modelo escolhido; em 503/falha cai para os demais
+       │  se todos falham → 503 (AllLLMsUnavailableException)
        ▼
- ILLMService
-  ├── ClaudeService   → claude-haiku-4-5-20251001
-  ├── OpenAIService   → gpt-4o-mini
-  └── GeminiService   → gemini-2.0-flash
-       │
+ GeminiService (1 instância por modelo: gemini-2.5-flash, 2.0-flash, 3.5-flash)
+       │  HttpClient resiliente (Polly): timeout + retry de rede/429
        ▼
  SSE Streaming → chunks de texto em tempo real
  data: ## Plano de Aula\n
  data:  **Tema:** Guaraná\n
- data: [DONE] {"llmUsed":"gemini-flash","profileId":"professor",...}
+ data: [DONE] {"llmUsed":"gemini-2.5-flash","profileId":"professor",...}
 ```
 
 **Decisões técnicas:**
 
 - **SSE em vez de WebSocket** — resposta unidirecional; SSE é mais simples, funciona sem estado e é nativo no browser
-- **Fallback entre LLMs** — o `LLMOrchestratorService` detecta falha no primeiro chunk e troca de provider transparentemente
-- **Perfis em JSON externo** — novos perfis e system prompts sem recompilar
+- **Cliente escolhe o modelo** — `model` no request (validado contra `GET /api/models`); o servidor faz fallback automático entre modelos em caso de sobrecarga (503) e informa em `llmUsed` qual respondeu
+- **Resiliência HTTP** — chamada ao Gemini com timeout e retry resiliente (Polly via `Microsoft.Extensions.Http.Resilience`)
+- **Perfis e modelos em config** — novos perfis (`profiles.json`) e modelos (`Gemini:Models`) sem recompilar
 
 ---
 
@@ -82,7 +77,8 @@ POST /api/chat  { profileId, message }
 |------------|------------|
 | Runtime | .NET 10 |
 | Framework | ASP.NET Core Web API |
-| LLMs | Claude Haiku · GPT-4o Mini · Gemini Flash |
+| LLM | Gemini Flash |
+| Resiliência | Polly (`Microsoft.Extensions.Http.Resilience`) |
 | Logging | Serilog |
 | Validação | FluentValidation |
 | Documentação | Scalar (`/scalar/v1`) |
@@ -104,11 +100,9 @@ cd ajuri-ia-api
 # 2. Criar arquivo de configuração local
 make setup
 
-# 3. Preencher as chaves no arquivo criado
+# 3. Preencher a chave no arquivo criado
 # Edite: src/AjuriIA.API/appsettings.Development.json
 # {
-#   "CLAUDE_API_KEY": "sk-ant-...",   → console.anthropic.com
-#   "OPENAI_API_KEY": "sk-...",       → platform.openai.com/api-keys
 #   "GEMINI_API_KEY": "AIza..."       → aistudio.google.com
 # }
 
@@ -117,14 +111,14 @@ make run    # API em http://localhost:5000
 make watch  # Com hot reload
 ```
 
-> Para usar **apenas Gemini** (plano gratuito, sem cartão), preencha só `GEMINI_API_KEY` e ignore as demais — todos os perfis roteiam para Gemini nesta POC.
+> O Gemini tem plano gratuito (sem cartão) — basta gerar a chave em [aistudio.google.com](https://aistudio.google.com).
 
 **Comandos disponíveis:**
 
 ```bash
 make run                 # Sobe a API localmente
 make watch               # Hot reload
-make test                # Roda os 41 testes
+make test                # Roda os 44 testes
 make test-unit           # Só testes unitários
 make test-integration    # Só testes de integração
 make test-functional     # Só testes funcionais
@@ -140,8 +134,9 @@ make clean               # Limpa bin/ e obj/
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | `GET` | `/api/health` | Status da API |
-| `GET` | `/api/profiles` | Lista os 6 perfis com system prompts |
-| `POST` | `/api/chat` | Chat com streaming SSE |
+| `GET` | `/api/profiles` | Lista os perfis com system prompts |
+| `GET` | `/api/models` | Lista os modelos de IA disponíveis + default |
+| `POST` | `/api/chat` | Chat com streaming SSE (aceita `model` opcional) |
 | `GET` | `/scalar/v1` | Documentação interativa |
 
 Referência completa de request/response: [doc/api.md](doc/api.md)
@@ -150,16 +145,16 @@ Referência completa de request/response: [doc/api.md](doc/api.md)
 
 ## Testes
 
-41 testes cobrindo três camadas:
+44 testes cobrindo três camadas:
 
 | Camada | O que cobre |
 |--------|-------------|
-| **Unitários** | Cada service isolado (Claude, OpenAI, Gemini, Orchestrator, ProfileService, Validator, Middleware) |
+| **Unitários** | Cada service isolado (Gemini, Orchestrator, ProfileService, Validator, Middleware) |
 | **Integração** | Endpoints via `WebApplicationFactory` com mocks de HTTP |
 | **Funcionais** | Fluxo SSE completo end-to-end |
 
 ```bash
-make test                # Todos os 41
+make test                # Todos os 44
 make test-unit           # Rápido — sem HTTP
 make test-integration    # Endpoints com mocks
 make test-functional     # SSE streaming completo

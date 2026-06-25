@@ -24,13 +24,13 @@ public class ProfileServiceTests
     public void Given_ValidProfileId_When_GetById_Should_ReturnProfileWithCorrectId()
     {
         // Given
-        const string profileId = "produtor";
+        const string profileId = "agente-saude";
 
         // When
         var result = _sut.GetById(profileId);
 
         // Then
-        result!.Id.Should().Be("produtor");
+        result!.Id.Should().Be("agente-saude");
     }
 
     [Fact(DisplayName = "Given nonexistent profileId, When GetById, Then returns null")]
@@ -46,14 +46,14 @@ public class ProfileServiceTests
         result.Should().BeNull();
     }
 
-    [Fact(DisplayName = "Given profiles loaded, When GetAll, Then returns exactly 6 profiles")]
-    public void Given_ProfilesLoaded_When_GetAll_Should_ReturnSixProfiles()
+    [Fact(DisplayName = "Given profiles loaded, When GetAll, Then returns exactly 2 profiles")]
+    public void Given_ProfilesLoaded_When_GetAll_Should_ReturnTwoProfiles()
     {
         // When
         var result = _sut.GetAll();
 
         // Then
-        result.Should().HaveCount(6);
+        result.Should().HaveCount(2);
     }
 
     [Fact(DisplayName = "Given profiles loaded, When GetAll, Then all profiles have non-empty llm field")]

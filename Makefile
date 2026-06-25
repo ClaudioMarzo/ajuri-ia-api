@@ -51,7 +51,7 @@ setup:
 	@if [ -f $(API)/appsettings.Development.json ]; then \
 		echo "appsettings.Development.json já existe. Edite diretamente em $(API)/appsettings.Development.json"; \
 	else \
-		echo '{\n  "CLAUDE_API_KEY": "sk-ant-COLOQUE-AQUI",\n  "OPENAI_API_KEY": "sk-COLOQUE-AQUI",\n  "GEMINI_API_KEY": "AIza-COLOQUE-AQUI",\n  "AllowedOrigin": "http://localhost:5173"\n}' > $(API)/appsettings.Development.json; \
+		echo '{\n  "GEMINI_API_KEY": "AIza-COLOQUE-AQUI",\n  "AllowedOrigin": "http://localhost:5173"\n}' > $(API)/appsettings.Development.json; \
 		echo "Criado $(API)/appsettings.Development.json — preencha as chaves antes de rodar."; \
 	fi
 

@@ -25,8 +25,7 @@ public class RequestEnrichmentMiddlewareTests
     {
         // Given
         var context = CreateContext("""{"profileId":"professor","message":"test"}""");
-        var nextCalled = false;
-        RequestDelegate next = _ => { nextCalled = true; return Task.CompletedTask; };
+        RequestDelegate next = _ => Task.CompletedTask;
         var middleware = new RequestEnrichmentMiddleware(next);
 
         // When

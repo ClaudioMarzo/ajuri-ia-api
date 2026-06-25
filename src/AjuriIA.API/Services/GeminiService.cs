@@ -4,15 +4,17 @@ using Microsoft.Extensions.Logging;
 
 namespace AjuriIA.API.Services;
 
+/// <summary>
+/// Uma instância por modelo Gemini. O fallback entre modelos é feito pelo
+/// <see cref="LLMOrchestratorService"/>, que registra cada modelo como um ILLMService.
+/// </summary>
 public class GeminiService(
     IHttpClientFactory httpClientFactory,
     IConfiguration configuration,
-    ILogger<GeminiService> logger) : ILLMService
+    ILogger<GeminiService> logger,
+    string model) : ILLMService
 {
-    private const string Model = "gemini-3.5-flash";
-    private const int MaxAttempts = 2;
-
-    public string Name => "gemini-flash";
+    public string Name => model;
 
     public async IAsyncEnumerable<string> StreamAsync(
         string systemPrompt,
@@ -22,7 +24,7 @@ public class GeminiService(
         var apiKey = configuration["GEMINI_API_KEY"]
             ?? throw new InvalidOperationException("GEMINI_API_KEY not configured");
 
-        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{Model}:streamGenerateContent?alt=sse";
+        var url = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse";
 
         var body = new
         {
@@ -30,15 +32,37 @@ public class GeminiService(
             contents = new[] { new { role = "user", parts = new[] { new { text = userMessage } } } }
         };
 
-        var response = await SendWithRetryAsync(apiKey, url, body, ct);
+        var client = httpClientFactory.CreateClient("gemini");
+        var request = new HttpRequestMessage(HttpMethod.Post, url);
+        request.Headers.Add("x-goog-api-key", apiKey);
+        request.Content = JsonContent.Create(body);
+
+        // O pipeline de resiliência (Polly) trata retry de rede/timeout/429.
+        // O fallback de modelo em 503 (sobrecarga) é responsabilidade do orquestrador.
+        var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            // Surfaceia o corpo de erro do Gemini (motivo real: chave inválida,
+            // modelo sobrecarregado, quota etc.) em vez de descartá-lo.
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            if (errorBody.Length > 500) errorBody = errorBody[..500];
+            logger.LogWarning(
+                "[Gemini] modelo {Model} retornou {Status}: {Body}",
+                model, (int)response.StatusCode, errorBody);
+            throw new HttpRequestException(
+                $"Gemini {(int)response.StatusCode} ({response.StatusCode}) no modelo {model}: {errorBody}",
+                inner: null,
+                statusCode: response.StatusCode);
+        }
 
         using var stream = await response.Content.ReadAsStreamAsync(ct);
         using var reader = new StreamReader(stream);
 
-        while (!reader.EndOfStream && !ct.IsCancellationRequested)
+        string? line;
+        while ((line = await reader.ReadLineAsync(ct)) is not null)
         {
-            var line = await reader.ReadLineAsync(ct);
-            if (line is null || !line.StartsWith("data: ")) continue;
+            if (!line.StartsWith("data: ", StringComparison.Ordinal)) continue;
 
             var json = line[6..];
 
@@ -52,7 +76,7 @@ public class GeminiService(
                 var errorMsg = error.TryGetProperty("message", out var msg)
                     ? msg.GetString() ?? "Gemini API error"
                     : "Gemini API error";
-                throw new HttpRequestException($"Gemini API error: {errorMsg}");
+                throw new HttpRequestException($"Gemini API error no modelo {model}: {errorMsg}");
             }
 
             if (root.TryGetProperty("candidates", out var candidates) &&
@@ -66,45 +90,5 @@ public class GeminiService(
                 if (chunk is not null) yield return chunk;
             }
         }
-    }
-
-    private async Task<HttpResponseMessage> SendWithRetryAsync(
-        string apiKey, string url, object body, CancellationToken ct)
-    {
-        var client = httpClientFactory.CreateClient();
-
-        for (int attempt = 1; attempt <= MaxAttempts; attempt++)
-        {
-            var request = new HttpRequestMessage(HttpMethod.Post, url);
-            request.Headers.Add("x-goog-api-key", apiKey);
-            request.Content = JsonContent.Create(body);
-
-            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, ct);
-
-            if ((int)response.StatusCode != 429)
-            {
-                response.EnsureSuccessStatusCode();
-                return response;
-            }
-
-            if (attempt == MaxAttempts)
-            {
-                response.EnsureSuccessStatusCode(); // lança HttpRequestException com 429
-                return response;                    // nunca alcançado
-            }
-
-            // Respeita o Retry-After do Gemini; fallback de 5s
-            var retryAfter = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(5);
-            var waitMs = (int)Math.Min(retryAfter.TotalMilliseconds, 10_000);
-
-            logger.LogWarning(
-                "[Gemini] 429 Too Many Requests — aguardando {WaitMs}ms antes da tentativa {Next}/{Max}",
-                waitMs, attempt + 1, MaxAttempts);
-
-            await Task.Delay(waitMs, ct);
-        }
-
-        // nunca alcançado, mas satisfaz o compilador
-        throw new HttpRequestException("Gemini: máximo de tentativas atingido");
     }
 }

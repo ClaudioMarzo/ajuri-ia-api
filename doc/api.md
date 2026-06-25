@@ -19,7 +19,7 @@ Verifica se a API está no ar.
 
 ## GET /api/profiles
 
-Retorna os 6 perfis disponíveis com suas descrições.
+Retorna os 2 perfis disponíveis com suas descrições.
 
 **Resposta 200:**
 ```json
@@ -31,10 +31,33 @@ Retorna os 6 perfis disponíveis com suas descrições.
       "nome": "Professor / Educador",
       "icone": "📚",
       "descricao": "Planos de aula em segundos",
-      "llm": "claude-haiku",
+      "llm": "gemini-flash",
       "systemPrompt": "..."
     }
   ],
+  "traceId": "00-4bf92f...",
+  "messageError": null
+}
+```
+
+---
+
+## GET /api/models
+
+Lista os modelos de IA disponíveis para o cliente escolher e o modelo default.
+
+**Resposta 200:**
+```json
+{
+  "success": true,
+  "data": {
+    "default": "gemini-2.5-flash",
+    "models": [
+      { "id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash" },
+      { "id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash" },
+      { "id": "gemini-3.5-flash", "label": "Gemini 3.5 Flash" }
+    ]
+  },
   "traceId": "00-4bf92f...",
   "messageError": null
 }
@@ -50,15 +73,19 @@ Envia uma mensagem para um perfil e recebe a resposta em streaming (Server-Sent 
 ```json
 {
   "profileId": "professor",
-  "message": "Crie uma aula sobre guaraná para o 5º ano, 50 minutos"
+  "message": "Crie uma aula sobre guaraná para o 5º ano, 50 minutos",
+  "model": "gemini-2.5-flash"
 }
 ```
 
 **Regras de validação:**
-- `profileId`: obrigatório, deve ser um dos 6 IDs cadastrados
+- `profileId`: obrigatório, deve ser um dos IDs cadastrados
 - `message`: obrigatório, entre 3 e 2000 caracteres
+- `model`: **opcional**; se informado, deve ser um dos IDs de `GET /api/models`. Se omitido, usa o default do servidor.
 
-**IDs válidos:** `professor` · `produtor` · `pescador` · `agente-saude` · `servidor` · `empreendedor`
+**IDs de perfil válidos:** `professor` · `agente-saude`
+
+> **Fallback de modelo:** o servidor tenta o modelo escolhido primeiro; se ele estiver sobrecarregado (503), cai automaticamente para os demais modelos da lista e retorna a resposta do primeiro que funcionar. O campo `llmUsed` no evento `[DONE]` informa qual modelo de fato respondeu.
 
 **Resposta 200 — stream SSE:**
 ```
@@ -70,7 +97,7 @@ data:  **Tema:** Guaraná\n
 
 data:  ...
 
-data: [DONE] {"success":true,"data":{"llmUsed":"claude-haiku","profileId":"professor"},"traceId":"00-4bf9...","messageError":null}
+data: [DONE] {"success":true,"data":{"llmUsed":"gemini-flash","profileId":"professor"},"traceId":"00-4bf9...","messageError":null}
 ```
 
 **Resposta 400 — validação falhou:**

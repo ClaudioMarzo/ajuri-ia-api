@@ -13,6 +13,7 @@ public class ChatController(
     ProfileService profileService,
     LLMOrchestratorService orchestrator,
     ChatRequestValidator validator,
+    GeminiOptions geminiOptions,
     ILogger<ChatController> logger) : ControllerBase
 {
     private static readonly JsonSerializerOptions _jsonOptions = new()
@@ -49,6 +50,11 @@ public class ChatController(
             return;
         }
 
+        // Modelo escolhido pelo cliente (validado contra a allowlist); senão, o default do servidor.
+        var chosenModel = string.IsNullOrWhiteSpace(request.Model)
+            ? geminiOptions.DefaultModelId
+            : request.Model;
+
         Response.Headers.ContentType = "text/event-stream";
         Response.Headers.CacheControl = "no-cache";
         Response.Headers.Connection = "keep-alive";
@@ -59,7 +65,7 @@ public class ChatController(
 
         try
         {
-            await foreach (var chunk in orchestrator.StreamAsync(profile, request.Message, ct))
+            await foreach (var chunk in orchestrator.StreamAsync(profile, request.Message, chosenModel, ct))
             {
                 await Response.WriteAsync($"data: {chunk.Replace("\n", "\\n")}\n\n", ct);
                 await Response.Body.FlushAsync(ct);

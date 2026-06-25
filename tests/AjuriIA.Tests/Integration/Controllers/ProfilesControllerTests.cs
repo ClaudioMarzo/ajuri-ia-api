@@ -31,7 +31,7 @@ public class ProfilesControllerTests(WebApplicationFactory<Program> factory)
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
         // Then
-        envelope!.Data.Should().HaveCount(6);
+        envelope!.Data.Should().HaveCount(2);
     }
 
     [Fact(DisplayName = "Given API running, When GET /api/health, Then returns HTTP 200")]

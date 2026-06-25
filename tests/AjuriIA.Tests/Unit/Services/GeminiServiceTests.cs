@@ -11,6 +11,8 @@ namespace AjuriIA.Tests.Unit.Services;
 
 public class GeminiServiceTests
 {
+    private const string TestModel = "gemini-2.5-flash";
+
     private static GeminiService CreateSut(HttpMessageHandler handler)
     {
         var config = Substitute.For<IConfiguration>();
@@ -18,7 +20,7 @@ public class GeminiServiceTests
         var httpClient = new HttpClient(handler);
         var factory = Substitute.For<IHttpClientFactory>();
         factory.CreateClient(Arg.Any<string>()).Returns(httpClient);
-        return new GeminiService(factory, config, NullLogger<GeminiService>.Instance);
+        return new GeminiService(factory, config, NullLogger<GeminiService>.Instance, TestModel);
     }
 
     private static HttpMessageHandler CreateSseHandler(IEnumerable<string> textChunks)
@@ -39,14 +41,14 @@ public class GeminiServiceTests
             }));
     }
 
-    [Fact(DisplayName = "Given Gemini service, When created, Then Name is gemini-flash")]
+    [Fact(DisplayName = "Given Gemini service, When created, Then Name is the model id")]
     public void Given_GeminiService_When_Created_Should_HaveCorrectName()
     {
         // Given / When
         var sut = CreateSut(CreateSseHandler([]));
 
         // Then
-        sut.Name.Should().Be("gemini-flash");
+        sut.Name.Should().Be(TestModel);
     }
 
     [Fact(DisplayName = "Given valid SSE response, When StreamAsync, Then yields correct chunk count")]
