@@ -34,9 +34,27 @@ builder.Services.AddScoped<ChatRequestValidator>();
 var geminiOptions = builder.Configuration.GetSection("Gemini").Get<GeminiOptions>()
     ?? new GeminiOptions();
 builder.Services.AddSingleton(geminiOptions);
+var groqOptions = builder.Configuration.GetSection("Groq").Get<GroqOptions>()
+    ?? new GroqOptions();
+builder.Services.AddSingleton(groqOptions);
+var openRouterOptions = builder.Configuration.GetSection("OpenRouter").Get<OpenRouterOptions>()
+    ?? new OpenRouterOptions();
+builder.Services.AddSingleton(openRouterOptions);
 
 // Retry curto: o fallback entre modelos (orquestrador) é quem resolve 503/sobrecarga.
 builder.Services.AddHttpClient("gemini").AddStandardResilienceHandler(o =>
+{
+    o.Retry.MaxRetryAttempts = 1;
+    o.Retry.Delay = TimeSpan.FromMilliseconds(500);
+});
+
+builder.Services.AddHttpClient("openrouter").AddStandardResilienceHandler(o =>
+{
+    o.Retry.MaxRetryAttempts = 1;
+    o.Retry.Delay = TimeSpan.FromMilliseconds(500);
+});
+
+builder.Services.AddHttpClient("groq").AddStandardResilienceHandler(o =>
 {
     o.Retry.MaxRetryAttempts = 1;
     o.Retry.Delay = TimeSpan.FromMilliseconds(500);
@@ -53,6 +71,36 @@ foreach (var m in geminiOptions.Models)
         sp.GetRequiredService<ILogger<GeminiService>>(),
         modelId));
 }
+
+var hasGroqKey = !string.IsNullOrWhiteSpace(builder.Configuration["GROQ_API_KEY"]);
+if (hasGroqKey)
+{
+    foreach (var m in groqOptions.Models)
+    {
+        var modelId = m.Id;
+        builder.Services.AddSingleton<ILLMService>(sp => new GroqService(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<IConfiguration>(),
+            sp.GetRequiredService<ILogger<GroqService>>(),
+            modelId));
+    }
+}
+
+var hasOpenRouterKey = !string.IsNullOrWhiteSpace(builder.Configuration["OPENROUTER_API_KEY"]);
+if (hasOpenRouterKey)
+{
+    foreach (var m in openRouterOptions.Models)
+    {
+        var modelId = m.Id;
+        builder.Services.AddSingleton<ILLMService>(sp => new OpenRouterService(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<IConfiguration>(),
+            sp.GetRequiredService<OpenRouterOptions>(),
+            sp.GetRequiredService<ILogger<OpenRouterService>>(),
+            modelId));
+    }
+}
+
 builder.Services.AddScoped<LLMOrchestratorService>();
 
 // CORS
@@ -80,6 +128,20 @@ void LogApiKey(string key)
 }
 
 LogApiKey("GEMINI_API_KEY");
+LogApiKey("GROQ_API_KEY");
+LogApiKey("OPENROUTER_API_KEY");
+
+if (!hasGroqKey)
+{
+    startupLogger.LogWarning(
+        "GROQ_API_KEY ausente — fallback Groq desativado.");
+}
+
+if (!hasOpenRouterKey)
+{
+    startupLogger.LogWarning(
+        "OPENROUTER_API_KEY ausente — fallback OpenRouter desativado.");
+}
 
 app.UseMiddleware<RequestEnrichmentMiddleware>();
 app.UseSerilogRequestLogging(opts =>
