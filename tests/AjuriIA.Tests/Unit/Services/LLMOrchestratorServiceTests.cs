@@ -62,6 +62,8 @@ public class LLMOrchestratorServiceTests
 
         // Then
         sut.LastUsedLlm.Should().Be("gpt-4o-mini");
+        sut.UsedFallback.Should().BeTrue();
+        sut.FallbackFromLlm.Should().Be("claude-haiku");
     }
 
     [Fact(DisplayName = "Given primary and fallback fail, When StreamAsync, Then uses last available LLM")]

@@ -89,7 +89,11 @@ public class ChatController(
                 Success = true,
                 Data = new ChatResponse
                 {
+                    RequestedLlm = orchestrator.RequestedLlm ?? chosenModel,
                     LlmUsed = orchestrator.LastUsedLlm ?? "unknown",
+                    FallbackUsed = orchestrator.UsedFallback,
+                    FallbackFromLlm = orchestrator.FallbackFromLlm,
+                    FallbackMessage = BuildFallbackMessage(orchestrator),
                     ProfileId = request.ProfileId
                 },
                 TraceId = traceId
@@ -98,5 +102,15 @@ public class ChatController(
 
         await Response.WriteAsync($"data: [DONE] {donePayload}\n\n", ct);
         await Response.Body.FlushAsync(ct);
+    }
+
+    private static string? BuildFallbackMessage(LLMOrchestratorService orchestrator)
+    {
+        if (!orchestrator.UsedFallback)
+            return null;
+
+        var failedLlm = orchestrator.FallbackFromLlm ?? orchestrator.RequestedLlm ?? "modelo solicitado";
+        var usedLlm = orchestrator.LastUsedLlm ?? "modelo de fallback";
+        return $"{failedLlm} falhou; resposta gerada com fallback em {usedLlm}.";
     }
 }

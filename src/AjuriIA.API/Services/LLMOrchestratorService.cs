@@ -9,7 +9,10 @@ public class LLMOrchestratorService(
     IEnumerable<ILLMService> services,
     ILogger<LLMOrchestratorService> logger)
 {
+    public string? RequestedLlm { get; private set; }
     public string? LastUsedLlm { get; private set; }
+    public bool UsedFallback { get; private set; }
+    public string? FallbackFromLlm { get; private set; }
 
     public async IAsyncEnumerable<string> StreamAsync(
         Profile profile,
@@ -18,6 +21,11 @@ public class LLMOrchestratorService(
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var primary = string.IsNullOrWhiteSpace(preferredLlm) ? profile.Llm : preferredLlm;
+        RequestedLlm = primary;
+        LastUsedLlm = null;
+        UsedFallback = false;
+        FallbackFromLlm = null;
+
         var ordered = GetServicesInOrder(primary);
         bool hadFailure = false;
 
@@ -49,6 +57,7 @@ public class LLMOrchestratorService(
                 }
 
                 LastUsedLlm = service.Name;
+                UsedFallback = hadFailure;
                 logger.LogInformation(
                     "[LLM] Primeiro chunk em {ElapsedMs}ms — {LlmName} respondeu",
                     sw.ElapsedMilliseconds, service.Name);
@@ -68,6 +77,7 @@ public class LLMOrchestratorService(
 
                 failedOnFirst = true;
                 hadFailure = true;
+                FallbackFromLlm ??= service.Name;
 
                 if (enumerator is not null)
                     await enumerator.DisposeAsync();

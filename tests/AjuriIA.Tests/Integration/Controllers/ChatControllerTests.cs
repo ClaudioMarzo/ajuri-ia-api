@@ -47,6 +47,31 @@ public class ChatControllerTests : IClassFixture<WebApplicationFactory<Program>>
         }).CreateClient();
     }
 
+    private HttpClient CreateClientWithFallbackScenario(string primaryLlm, string fallbackLlm, string[] chunks)
+    {
+        return _factory.WithWebHostBuilder(b =>
+        {
+            b.ConfigureServices(services =>
+            {
+                var descriptors = services.Where(d => d.ServiceType == typeof(ILLMService)).ToList();
+                foreach (var d in descriptors) services.Remove(d);
+
+                var primary = Substitute.For<ILLMService>();
+                primary.Name.Returns(primaryLlm);
+                primary.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                    .Returns(_ => throw new HttpRequestException());
+
+                var fallback = Substitute.For<ILLMService>();
+                fallback.Name.Returns(fallbackLlm);
+                fallback.StreamAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+                    .Returns(MockStream(chunks));
+
+                services.AddSingleton(primary);
+                services.AddSingleton(fallback);
+            });
+        }).CreateClient();
+    }
+
     [Fact(DisplayName = "Given invalid profileId, When POST /api/chat, Then returns HTTP 400")]
     public async Task Given_InvalidProfileId_When_PostChat_Should_ReturnHttp400()
     {
@@ -106,6 +131,27 @@ public class ChatControllerTests : IClassFixture<WebApplicationFactory<Program>>
 
         // Then
         body.Should().Contain("[DONE]");
+    }
+
+    [Fact(DisplayName = "Given primary LLM fails, When POST /api/chat, Then DONE event contains fallback metadata")]
+    public async Task Given_PrimaryLLMFails_When_PostChat_Should_ContainFallbackMetadata()
+    {
+        var client = CreateClientWithFallbackScenario("gemini-2.5-flash", "llama-3.3-70b-versatile", ["Resposta por fallback"]);
+        var payload = new
+        {
+            profileId = "professor",
+            message = "Como posso comecar?",
+            model = "gemini-2.5-flash"
+        };
+        var content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/chat", content);
+        var body = await response.Content.ReadAsStringAsync();
+
+        body.Should().Contain("\"fallbackUsed\":true");
+        body.Should().Contain("\"fallbackFromLlm\":\"gemini-2.5-flash\"");
+        body.Should().Contain("llama-3.3-70b-versatile");
+        body.Should().Contain("falhou; resposta gerada com fallback");
     }
 
     [Fact(DisplayName = "Given valid request with mocked LLM, When POST /api/chat, Then [CHAT] log is emitted with profile info")]
